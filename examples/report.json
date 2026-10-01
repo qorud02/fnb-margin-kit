@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "basis": {
+    "sales": "price_gross / (1 + vat_rate)",
+    "ingredient_and_packaging": "supplied VAT-exclusive costs",
+    "platform_fee": "price_gross * platform_fee_rate",
+    "contribution": "net sales minus ingredient, packaging, and platform fees",
+    "excluded": [
+      "labor",
+      "rent",
+      "other fixed costs",
+      "income tax"
+    ],
+    "rounding": "50-digit Decimal arithmetic; JSON amounts are decimal strings"
+  },
+  "total_units": 190,
+  "totals": {
+    "gross_sales": "847000",
+    "net_sales": "770000",
+    "ingredient_cost": "195000",
+    "packaging_cost": "30000",
+    "platform_fees": "33000.00",
+    "variable_cost": "258000.00",
+    "contribution": "512000.00"
+  },
+  "menus": [
+    {
+      "menu": "아메리카노",
+      "category": "커피",
+      "units": 100,
+      "net_price_per_unit": "4000",
+      "platform_fee_per_unit": "132.00",
+      "variable_cost_per_unit": "932.00",
+      "contribution_per_unit": "3068.00",
+      "total_contribution": "306800.00",
+      "margin_flag": "positive",
+      "rank": 1
+    },
+    {
+      "menu": "카페라테",
+      "category": "커피",
+      "units": 60,
+      "net_price_per_unit": "5000",
+      "platform_fee_per_unit": "165.00",
+      "variable_cost_per_unit": "1515.00",
+      "contribution_per_unit": "3485.00",
+      "total_contribution": "209100.00",
+      "margin_flag": "positive",
+      "rank": 2
+    },
+    {
+      "menu": "행사 음료",
+      "category": "프로모션",
+      "units": 10,
+      "net_price_per_unit": "1000",
+      "platform_fee_per_unit": "0",
+      "variable_cost_per_unit": "1000",
+      "contribution_per_unit": "0",
+      "total_contribution": "0",
+      "margin_flag": "zero",
+      "rank": 3
+    },
+    {
+      "menu": "배달 디저트",
+      "category": "디저트",
+      "units": 20,
+      "net_price_per_unit": "3000",
+      "platform_fee_per_unit": "495.00",
+      "variable_cost_per_unit": "3195.00",
+      "contribution_per_unit": "-195.00",
+      "total_contribution": "-3900.00",
+      "margin_flag": "negative",
+      "rank": 4
+    }
+  ]
+}
