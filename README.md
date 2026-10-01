@@ -90,8 +90,8 @@ development. The suite covers decimal arithmetic, VAT and fee bases, invalid
 inputs, UTF-8 BOM, Korean names, rank ties, zero sales, negative margins,
 fixed-cost scenarios, and CLI reports.
 
-A [GitHub Actions configuration](ci/github-actions.yml) is provided for Linux.
-Copy it to `.github/workflows/ci.yml` to enable automated tests.
+GitHub Actions runs package tests and the example workflow on Linux with
+Python 3.10, 3.12, and 3.14. See the [workflow](.github/workflows/ci.yml).
 
 ## 한국어 안내
 
