@@ -90,8 +90,8 @@ development. The suite covers decimal arithmetic, VAT and fee bases, invalid
 inputs, UTF-8 BOM, Korean names, rank ties, zero sales, negative margins,
 fixed-cost scenarios, and CLI reports.
 
-A [GitHub Actions configuration](ci/github-actions.yml) is provided for Windows
-and Linux. Copy it to `.github/workflows/ci.yml` to enable automated tests.
+A [GitHub Actions configuration](ci/github-actions.yml) is provided for Linux.
+Copy it to `.github/workflows/ci.yml` to enable automated tests.
 
 ## 한국어 안내
 
