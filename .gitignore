@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+report/
+report-smoke/
+.coverage
+.pytest_cache/
+.github/workflows/

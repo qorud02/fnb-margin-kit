@@ -1,0 +1,5 @@
+menu,category,price_gross,vat_rate,ingredient_cost,packaging_cost,platform_fee_rate,units
+아메리카노,커피,4400,0.10,700,100,0.03,100
+카페라테,커피,5500,0.10,1200,150,0.03,60
+배달 디저트,디저트,3300,0.10,2200,500,0.15,20
+행사 음료,프로모션,1100,0.10,900,100,0,10
