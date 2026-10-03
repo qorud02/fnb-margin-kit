@@ -12,6 +12,8 @@ Korean menu names and UTF-8 CSV exports with a BOM are supported.
 Python 3.10 or later is required.
 
 ```console
+git clone https://github.com/qorud02/fnb-margin-kit.git
+cd fnb-margin-kit
 python -m pip install .
 fnb-margin examples/menu.csv --output-dir report
 fnb-margin examples/menu.csv --output-dir report-with-cost --fixed-cost 300000
@@ -113,3 +115,33 @@ tests with changes.
 For setup and review guidance, see [기여 안내 / contributor guide](CONTRIBUTING.md).
 
 Licensed under MIT.
+
+## Container and wheel
+
+The Linux amd64 image runs the same CSV calculator and writes `report.json` and `report.md`. Keep the input mount read-only and give the selected output directory write access.
+
+On Linux, run as your host user so the reports keep your file ownership:
+
+```sh
+mkdir -p report-container
+docker run --rm --platform linux/amd64 --network none --read-only --user "$(id -u):$(id -g)" --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.1.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
+```
+
+With Docker Desktop configured for Linux containers, PowerShell uses:
+
+```powershell
+New-Item -ItemType Directory -Force report-container | Out-Null
+docker run --rm --platform linux/amd64 --network none --read-only --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.1.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
+```
+
+The image defaults to UID 10001. Mounted inputs must be readable and the output directory writable by the user running the container. For this fixture, `report-container/report.json` contains contribution of 477,000 and contribution of 177,000 after the supplied fixed cost. Replace the CSV path and fixed cost with your own inputs for the same period and monetary unit.
+
+Download `fnb_margin_kit-0.1.0-py3-none-any.whl` and `SHA256SUMS` from the [release](https://github.com/qorud02/fnb-margin-kit/releases/tag/v0.1.0), then install the wheel offline:
+
+```sh
+python -m pip install --no-index --no-deps ./fnb_margin_kit-0.1.0-py3-none-any.whl
+fnb-margin --help
+fnb-margin examples/store-versus-delivery.csv --output-dir report-wheel
+```
+
+The wheel supports Python 3.10 or newer and has no runtime dependencies. The [package workflow](.github/workflows/package.yml) checks source bytes, license metadata, report calculations, protected inputs, a fresh wheel installation, and the non-root container before publishing its versioned image.
