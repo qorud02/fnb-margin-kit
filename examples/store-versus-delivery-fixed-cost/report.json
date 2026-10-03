@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "basis": {
+    "sales": "price_gross / (1 + vat_rate)",
+    "ingredient_and_packaging": "supplied VAT-exclusive costs",
+    "platform_fee": "price_gross * platform_fee_rate",
+    "contribution": "net sales minus ingredient, packaging, and platform fees",
+    "excluded": [
+      "labor",
+      "rent",
+      "other fixed costs",
+      "income tax"
+    ],
+    "rounding": "50-digit Decimal arithmetic; JSON amounts are decimal strings"
+  },
+  "total_units": 140,
+  "totals": {
+    "gross_sales": "770000",
+    "net_sales": "700000",
+    "ingredient_cost": "168000",
+    "packaging_cost": "22000",
+    "platform_fees": "33000.00",
+    "variable_cost": "223000.00",
+    "contribution": "477000.00"
+  },
+  "menus": [
+    {
+      "menu": "카페라테",
+      "category": "매장",
+      "units": 100,
+      "net_price_per_unit": "5000",
+      "platform_fee_per_unit": "0",
+      "variable_cost_per_unit": "1300",
+      "contribution_per_unit": "3700",
+      "total_contribution": "370000",
+      "margin_flag": "positive",
+      "rank": 1
+    },
+    {
+      "menu": "카페라테",
+      "category": "배달",
+      "units": 40,
+      "net_price_per_unit": "5000",
+      "platform_fee_per_unit": "825.00",
+      "variable_cost_per_unit": "2325.00",
+      "contribution_per_unit": "2675.00",
+      "total_contribution": "107000.00",
+      "margin_flag": "positive",
+      "rank": 2
+    }
+  ],
+  "fixed_cost_scenario": {
+    "specified_fixed_cost": "300000",
+    "contribution_after_specified_fixed_cost": "177000.00",
+    "basis": "Only the supplied fixed cost is deducted; this is not a net-profit calculation."
+  }
+}

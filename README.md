@@ -20,6 +20,8 @@ fnb-margin examples/menu.csv --output-dir report-with-cost --fixed-cost 300000
 The command writes `report.md` and `report.json`. Output paths must not alias the input CSV, including existing hard links. The supplied fixed cost must
 cover the same period as the CSV sales and use the same monetary unit.
 
+Run the [매장·배달 비교 / store-versus-delivery example](docs/store-versus-delivery.md) to compare the same menu with different packaging and platform fees.
+
 ## Input
 
 ```csv
@@ -103,7 +105,7 @@ F&B 메뉴별 판매 수량과 원가를 CSV로 넣으면 고정비 차감 전 �
 
 ## Development
 
-Developed with AI assistance. Calculation rules and validation behavior are
+Calculation rules and validation behavior are
 documented and checked with executable tests. Contributions that improve real
 operator workflows are welcome; include the calculation basis and regression
 tests with changes.
