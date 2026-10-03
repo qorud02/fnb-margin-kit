@@ -108,4 +108,6 @@ documented and checked with executable tests. Contributions that improve real
 operator workflows are welcome; include the calculation basis and regression
 tests with changes.
 
+For setup and review guidance, see [기여 안내 / contributor guide](CONTRIBUTING.md).
+
 Licensed under MIT.
