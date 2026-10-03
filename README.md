@@ -118,6 +118,8 @@ Licensed under MIT.
 
 ## Container and wheel
 
+Run the example commands below from the cloned `fnb-margin-kit` directory. The [installation steps](#install-and-run) fetch the CSV examples.
+
 The Linux amd64 image runs the same CSV calculator and writes `report.json` and `report.md`. Keep the input mount read-only and give the selected output directory write access.
 
 On Linux, run as your host user so the reports keep your file ownership:
