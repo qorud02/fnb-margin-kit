@@ -79,6 +79,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        input_path = args.csv.resolve()
+        for name in ("report.json", "report.md"):
+            output_path = args.output_dir / name
+            if output_path.resolve() == input_path or (
+                output_path.exists() and output_path.samefile(args.csv)
+            ):
+                raise InputError("Report output must not overwrite the input CSV")
         fixed = (
             None if args.fixed_cost is None else number(args.fixed_cost, "fixed_cost")
         )

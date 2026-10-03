@@ -17,7 +17,7 @@ fnb-margin examples/menu.csv --output-dir report
 fnb-margin examples/menu.csv --output-dir report-with-cost --fixed-cost 300000
 ```
 
-The command writes `report.md` and `report.json`. The supplied fixed cost must
+The command writes `report.md` and `report.json`. Output paths must not alias the input CSV, including existing hard links. The supplied fixed cost must
 cover the same period as the CSV sales and use the same monetary unit.
 
 ## Input
