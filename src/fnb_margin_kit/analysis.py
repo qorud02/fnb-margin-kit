@@ -18,6 +18,7 @@ FIELDS = (
     "platform_fee_rate",
     "units",
 )
+CHANNEL_COST_FIELDS = ("category", "additional_variable_cost")
 ZERO = Decimal("0")
 
 
@@ -61,6 +62,12 @@ class MenuItem:
     packaging_cost: Decimal
     platform_fee_rate: Decimal
     units: int
+
+
+@dataclass(frozen=True)
+class ChannelCost:
+    category: str
+    additional_variable_cost: Decimal
 
 
 def _text(value: str | None, field: str, row: int) -> str:
@@ -130,15 +137,67 @@ def load_menu(path: str | Path) -> list[MenuItem]:
         return read_menu(stream)
 
 
+def read_channel_costs(stream: TextIO) -> list[ChannelCost]:
+    """Read one period-level additional variable cost per menu category."""
+    reader = csv.DictReader(stream, strict=True)
+    try:
+        headers = reader.fieldnames
+        if headers:
+            headers[0] = headers[0].removeprefix("\ufeff")
+        if (
+            headers is None
+            or len(headers) != len(CHANNEL_COST_FIELDS)
+            or set(headers) != set(CHANNEL_COST_FIELDS)
+        ):
+            raise InputError(
+                "Channel-cost CSV header must contain each of: "
+                + ",".join(CHANNEL_COST_FIELDS)
+            )
+        result = []
+        seen = set()
+        for row in reader:
+            line = reader.line_num
+            if None in row or any(value is None for value in row.values()):
+                raise InputError(f"row {line}: expected exactly 2 columns")
+            category = _text(row["category"], "category", line)
+            if category in seen:
+                raise InputError(f"row {line}: duplicate channel-cost category: {category}")
+            seen.add(category)
+            result.append(
+                ChannelCost(
+                    category,
+                    number(row["additional_variable_cost"], "additional_variable_cost", line),
+                )
+            )
+    except csv.Error as exc:
+        raise InputError(f"Invalid channel-cost CSV: {exc}") from exc
+    if not result:
+        raise InputError("Channel-cost CSV must contain at least one cost row")
+    return result
+
+
+def load_channel_costs(path: str | Path) -> list[ChannelCost]:
+    """Load a UTF-8 channel-cost CSV, including a BOM."""
+    with Path(path).open(encoding="utf-8-sig", newline="") as stream:
+        return read_channel_costs(stream)
+
+
 def _decimal(value: Decimal) -> str:
     return format(value, "f")
 
 
-def analyze(items: list[MenuItem], fixed_cost: Decimal | None = None) -> dict:
+def analyze(
+    items: list[MenuItem],
+    fixed_cost: Decimal | None = None,
+    *,
+    channel_costs: list[ChannelCost] | None = None,
+) -> dict:
     """Rank sales contributions using VAT-exclusive sales and gross-based fees.
 
     Ingredient and packaging costs are supplied VAT-exclusive. The report is
-    contribution before labor, rent, other fixed costs, and income tax.
+    contribution before labor, rent, other fixed costs, and income tax. Optional
+    channel costs are VAT-exclusive totals for the same sales period and unit,
+    deducted once per category without changing menu unit margins or rankings.
     """
     if not items:
         raise InputError("At least one menu item is required")
@@ -148,6 +207,7 @@ def analyze(items: list[MenuItem], fixed_cost: Decimal | None = None) -> dict:
         ctx.prec = 50
         rows = []
         seen = set()
+        categories = {}
         totals = {
             key: ZERO
             for key in (
@@ -194,6 +254,11 @@ def analyze(items: list[MenuItem], fixed_cost: Decimal | None = None) -> dict:
             }
             for key, value in amounts.items():
                 totals[key] += value
+            category_totals = categories.setdefault(
+                category, {"units": 0, "contribution": ZERO}
+            )
+            category_totals["units"] += int(units)
+            category_totals["contribution"] += total_margin
             rows.append(
                 {
                     "menu": menu,
@@ -234,12 +299,57 @@ def analyze(items: list[MenuItem], fixed_cost: Decimal | None = None) -> dict:
             "totals": {key: _decimal(value) for key, value in totals.items()},
             "menus": rows,
         }
+        contribution_before_fixed_cost = totals["contribution"]
+        if channel_costs is not None:
+            if not channel_costs:
+                raise InputError("At least one channel cost is required")
+            costs = {}
+            for cost in channel_costs:
+                category = _text(cost.category, "category", 0)
+                if category in costs:
+                    raise InputError(f"duplicate channel-cost category: {category}")
+                if category not in categories:
+                    raise InputError(f"Channel-cost category not found in menu CSV: {category}")
+                costs[category] = number(
+                    str(cost.additional_variable_cost), "additional_variable_cost"
+                )
+            additional_total = sum(costs.values(), ZERO)
+            contribution_before_fixed_cost -= additional_total
+            report["channel_cost_scenario"] = {
+                "categories": [
+                    {
+                        "category": category,
+                        "units": categories[category]["units"],
+                        "contribution_before_additional_cost": _decimal(
+                            categories[category]["contribution"]
+                        ),
+                        "additional_variable_cost": _decimal(costs.get(category, ZERO)),
+                        "contribution_after_additional_cost": _decimal(
+                            categories[category]["contribution"]
+                            - costs.get(category, ZERO)
+                        ),
+                    }
+                    for category in sorted(categories)
+                ],
+                "total_additional_variable_cost": _decimal(additional_total),
+                "contribution_after_additional_costs": _decimal(contribution_before_fixed_cost),
+                "basis": (
+                    "Supplied VAT-exclusive variable costs for the same period and "
+                    "monetary unit are deducted once per category. Menu margins and "
+                    "rankings remain before these additional costs."
+                ),
+            }
         if fixed_cost is not None:
             report["fixed_cost_scenario"] = {
                 "specified_fixed_cost": _decimal(fixed_cost),
                 "contribution_after_specified_fixed_cost": _decimal(
-                    totals["contribution"] - fixed_cost
+                    contribution_before_fixed_cost - fixed_cost
                 ),
                 "basis": "Only the supplied fixed cost is deducted; this is not a net-profit calculation.",
             }
+            if channel_costs is not None:
+                report["fixed_cost_scenario"]["basis"] = (
+                    "The supplied fixed cost is deducted after the additional channel "
+                    "costs. Other operating expenses and income tax remain excluded."
+                )
         return report

@@ -24,6 +24,15 @@ cover the same period as the CSV sales and use the same monetary unit.
 
 Run the [매장·배달 비교 / store-versus-delivery example](docs/store-versus-delivery.md) to compare the same menu with different packaging and platform fees.
 
+For variable charges recorded as a period total for a channel, supply an optional
+`--channel-costs` CSV. It deducts each category's additional cost once, while
+preserving menu unit margins and rankings. See the [channel-cost example](docs/channel-costs.md)
+for the two-column input, same-period and VAT requirements, and a worked calculation:
+
+```console
+fnb-margin examples/store-versus-delivery.csv --channel-costs examples/channel-costs.csv --fixed-cost 300000 --output-dir report-channel-costs
+```
+
 ## Input
 
 ```csv
@@ -92,7 +101,7 @@ python -m unittest discover -s tests -v
 Run tests after installing the package, or set `PYTHONPATH=src` during local
 development. The suite covers decimal arithmetic, VAT and fee bases, invalid
 inputs, UTF-8 BOM, Korean names, rank ties, zero sales, negative margins,
-fixed-cost scenarios, and CLI reports.
+fixed-cost scenarios, period-level channel costs, protected input files, and CLI reports.
 
 GitHub Actions runs package tests and the example workflow on Linux with
 Python 3.10, 3.12, and 3.14. See the [workflow](.github/workflows/ci.yml).
@@ -126,22 +135,22 @@ On Linux, run as your host user so the reports keep your file ownership:
 
 ```sh
 mkdir -p report-container
-docker run --rm --platform linux/amd64 --network none --read-only --user "$(id -u):$(id -g)" --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.1.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
+docker run --rm --platform linux/amd64 --network none --read-only --user "$(id -u):$(id -g)" --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.2.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
 ```
 
 With Docker Desktop configured for Linux containers, PowerShell uses:
 
 ```powershell
 New-Item -ItemType Directory -Force report-container | Out-Null
-docker run --rm --platform linux/amd64 --network none --read-only --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.1.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
+docker run --rm --platform linux/amd64 --network none --read-only --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.2.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
 ```
 
 The image defaults to UID 10001. Mounted inputs must be readable and the output directory writable by the user running the container. For this fixture, `report-container/report.json` contains contribution of 477,000 and contribution of 177,000 after the supplied fixed cost. Replace the CSV path and fixed cost with your own inputs for the same period and monetary unit.
 
-Download `fnb_margin_kit-0.1.0-py3-none-any.whl` and `SHA256SUMS` from the [release](https://github.com/qorud02/fnb-margin-kit/releases/tag/v0.1.0), then install the wheel offline:
+Download `fnb_margin_kit-0.2.0-py3-none-any.whl` and `SHA256SUMS` from the [release](https://github.com/qorud02/fnb-margin-kit/releases/tag/v0.2.0), then install the wheel offline:
 
 ```sh
-python -m pip install --no-index --no-deps ./fnb_margin_kit-0.1.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./fnb_margin_kit-0.2.0-py3-none-any.whl
 fnb-margin --help
 fnb-margin examples/store-versus-delivery.csv --output-dir report-wheel
 ```
