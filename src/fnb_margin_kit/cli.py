@@ -9,7 +9,7 @@ from decimal import ROUND_HALF_UP, Decimal, localcontext
 from html import escape
 from pathlib import Path
 
-from .analysis import InputError, analyze, load_menu, number
+from .analysis import InputError, analyze, load_channel_costs, load_menu, number
 
 
 def money(value: str) -> str:
@@ -25,12 +25,17 @@ def markdown(report: dict) -> str:
         return escape(value).replace("\\", "\\\\").replace("|", "\\|")
 
     totals = report["totals"]
+    contribution_label = (
+        "Contribution before additional channel and fixed costs"
+        if "channel_cost_scenario" in report
+        else "Contribution before fixed costs"
+    )
     lines = [
         "# F&B sales-mix contribution",
         "",
         f"Units sold: **{report['total_units']:,}**",
         f"VAT-exclusive sales: **{money(totals['net_sales'])}**",
-        f"Contribution before fixed costs: **{money(totals['contribution'])}**",
+        f"{contribution_label}: **{money(totals['contribution'])}**",
         "",
         "| Rank | Menu | Category | Units | Net price/unit | Fee/unit | Contribution/unit | Total contribution | Margin |",
         "| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
@@ -47,6 +52,28 @@ def markdown(report: dict) -> str:
         "Labor, rent, other fixed costs, and income tax are excluded. This report measures contribution, not net profit.",
         "Markdown amounts round to two decimal places; JSON retains the calculation precision.",
     ]
+    if "channel_cost_scenario" in report:
+        scenario = report["channel_cost_scenario"]
+        lines += [
+            "",
+            "## Additional channel variable costs",
+            "",
+            "| Category | Units | Contribution before additional cost | Additional variable cost | Contribution after additional cost |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+        for row in scenario["categories"]:
+            lines.append(
+                f"| {cell(row['category'])} | {row['units']} | "
+                f"{money(row['contribution_before_additional_cost'])} | "
+                f"{money(row['additional_variable_cost'])} | "
+                f"{money(row['contribution_after_additional_cost'])} |"
+            )
+        lines += [
+            "",
+            f"Total additional variable cost: **{money(scenario['total_additional_variable_cost'])}**",
+            f"Contribution after additional costs: **{money(scenario['contribution_after_additional_costs'])}**",
+            scenario["basis"],
+        ]
     if "fixed_cost_scenario" in report:
         scenario = report["fixed_cost_scenario"]
         lines += [
@@ -77,22 +104,34 @@ def main(argv: list[str] | None = None) -> int:
         "--fixed-cost",
         help="optional fixed cost for the same sales period, in the same monetary unit",
     )
+    parser.add_argument(
+        "--channel-costs",
+        type=Path,
+        help="optional category-level variable-cost CSV for the same period and monetary unit",
+    )
     args = parser.parse_args(argv)
     try:
         try:
-            input_path = args.csv.resolve()
-            for name in ("report.json", "report.md"):
-                output_path = args.output_dir / name
-                if output_path.resolve() == input_path or (
-                    output_path.exists() and output_path.samefile(args.csv)
-                ):
-                    raise InputError("Report output must not overwrite the input CSV")
+            inputs = [args.csv]
+            if args.channel_costs is not None:
+                inputs.append(args.channel_costs)
+            for source in inputs:
+                input_path = source.resolve()
+                for name in ("report.json", "report.md"):
+                    output_path = args.output_dir / name
+                    if output_path.resolve() == input_path or (
+                        output_path.exists() and output_path.samefile(source)
+                    ):
+                        raise InputError("Report output must not overwrite the input CSV")
         except RuntimeError as exc:
             raise InputError(f"Unable to resolve input or report path: {exc}") from exc
         fixed = (
             None if args.fixed_cost is None else number(args.fixed_cost, "fixed_cost")
         )
-        report = analyze(load_menu(args.csv), fixed_cost=fixed)
+        channel_costs = (
+            None if args.channel_costs is None else load_channel_costs(args.channel_costs)
+        )
+        report = analyze(load_menu(args.csv), fixed_cost=fixed, channel_costs=channel_costs)
         json_text = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
         md_text = markdown(report)
         args.output_dir.mkdir(parents=True, exist_ok=True)

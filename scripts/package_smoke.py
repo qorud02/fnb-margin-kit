@@ -41,6 +41,10 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         'duplicate.csv':(header+row+row).encode(),
         'zero.csv':(header+'negative,store,0,0.10,700,100,0.03,0\n').encode(),
         'source.csv':(header+row).encode(),
+        'costs.csv':b'category,additional_variable_cost\nstore,60000\n',
+        'unknown-cost.csv':b'category,additional_variable_cost\nunknown,60000\n',
+        'nonfinite-cost.csv':b'category,additional_variable_cost\nstore,NaN\n',
+        'duplicate-cost.csv':b'category,additional_variable_cost\nstore,1\nstore,2\n',
     }
     for name,data in payloads.items():
         (temp/name).write_bytes(data)
@@ -56,6 +60,15 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     os.link(temp/'source.csv',linked/'report.json')
     before_source=(temp/'source.csv').read_bytes()
     before_alias=(alias/'report.json').read_bytes()
+    cost_alias=temp/'cost-alias'
+    cost_alias.mkdir()
+    cost_alias.chmod(0o755)
+    (cost_alias/'report.md').write_bytes(payloads['costs.csv'])
+    (cost_alias/'report.md').chmod(0o644)
+    cost_linked=temp/'cost-hardlink'
+    cost_linked.mkdir()
+    cost_linked.chmod(0o755)
+    os.link(temp/'costs.csv',cost_linked/'report.json')
 
     if args.container:
         base=['docker','run','--rm','--platform','linux/amd64','--read-only','--network','none',
@@ -89,7 +102,7 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         return json.loads((destination/'report.json').read_text(encoding='utf-8'))
 
     help_text=run(['--help'],0,'console-help').stdout
-    assert '--fixed-cost' in help_text and '--output-dir' in help_text
+    assert '--fixed-cost' in help_text and '--output-dir' in help_text and '--channel-costs' in help_text
     original=report('original-menu',[fixture('menu.csv')])
     assert original['total_units']==190 and Decimal(original['totals']['net_sales'])==Decimal('770000')
     assert Decimal(original['totals']['contribution'])==Decimal('512000')
@@ -114,6 +127,35 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     for name,published_name in [('store-versus-delivery','store-versus-delivery'),('specified-fixed-cost','store-versus-delivery-fixed-cost')]:
         for file_name in ('report.json','report.md'):
             assert (output/name/file_name).read_text(encoding='utf-8')==(root/'examples'/published_name/file_name).read_text(encoding='utf-8')
+
+    channel=report('additional-channel-cost',[fixture('store-versus-delivery.csv'),
+                   '--channel-costs',fixture('channel-costs.csv'),'--fixed-cost','300000'])
+    assert channel['menus']==comparison['menus'] and channel['totals']==comparison['totals']
+    costs=channel['channel_cost_scenario']
+    categories={record['category']:record for record in costs['categories']}
+    assert Decimal(costs['total_additional_variable_cost'])==Decimal('60000')
+    assert Decimal(costs['contribution_after_additional_costs'])==Decimal('417000')
+    assert Decimal(categories['매장']['contribution_after_additional_cost'])==Decimal('370000')
+    assert Decimal(categories['배달']['contribution_after_additional_cost'])==Decimal('47000')
+    assert Decimal(channel['fixed_cost_scenario']['contribution_after_specified_fixed_cost'])==Decimal('117000')
+    assert channel['fixed_cost_scenario']['basis']==(
+        'The supplied fixed cost is deducted after the additional channel costs. '
+        'Other operating expenses and income tax remain excluded.'
+    )
+    assert '117,000.00' in (output/'additional-channel-cost'/'report.md').read_text(encoding='utf-8')
+    for name in ('unknown-cost.csv','nonfinite-cost.csv','duplicate-cost.csv'):
+        run([extra('source.csv'),'--channel-costs',extra(name),'--output-dir',out('invalid-'+name)],2,name)
+        assert not (output/('invalid-'+name)).exists()
+    cost_guard=run([extra('source.csv'),'--channel-costs',extra('cost-alias/report.md'),
+                   '--output-dir',extra('cost-alias')],2,'channel-cost-input-alias-protection')
+    assert 'must not overwrite' in cost_guard.stderr
+    cost_link_guard=run([extra('source.csv'),'--channel-costs',extra('costs.csv'),
+                        '--output-dir',extra('cost-hardlink')],2,'channel-cost-hardlink-protection')
+    assert 'must not overwrite' in cost_link_guard.stderr
+    assert (temp/'costs.csv').read_bytes()==payloads['costs.csv']
+    assert (cost_alias/'report.md').read_bytes()==payloads['costs.csv']
+    assert (cost_linked/'report.json').read_bytes()==payloads['costs.csv']
+    assert not (cost_alias/'report.json').exists() and not (cost_linked/'report.md').exists()
 
     zero=report('zero-units-negative-margin',[extra('zero.csv')])
     assert zero['total_units']==0 and zero['menus'][0]['margin_flag']=='negative'
@@ -155,7 +197,7 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         interpreter=sys.executable if args.source else str(Path(args.python).absolute())
         command=[interpreter]+([] if args.source else ['-I'])+['-m','fnb_margin_kit.cli','--help']
         result=subprocess.run(command,cwd=temp,env=clean_env,capture_output=True,text=True,encoding='utf-8',timeout=30)
-        assert result.returncode==0 and '--fixed-cost' in result.stdout
+        assert result.returncode==0 and '--fixed-cost' in result.stdout and '--channel-costs' in result.stdout
         checks.append('module-help')
 print(json.dumps({'mode':'container' if args.container else 'source' if args.source else 'wheel','version':version,
                   'version_check':'source pyproject only' if args.source else 'installed package metadata; CLI has no --version',
