@@ -24,7 +24,7 @@ python -m venv .venv
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pip install -e . -r requirements-test.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m fnb_margin_kit.cli examples/menu.csv --output-dir report-contributor-check
 ```
@@ -32,12 +32,13 @@ Windows PowerShell:
 macOS / Linux:
 
 ```sh
-.venv/bin/python -m pip install -e .
+.venv/bin/python -m pip install -e . -r requirements-test.txt
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m fnb_margin_kit.cli examples/menu.csv --output-dir report-contributor-check
 ```
 
-Activation is unnecessary. The application has no runtime dependencies;
+Activation is unnecessary. Tests use the pinned renderer in requirements-test.txt
+to check actual Markdown table output. The application has no runtime dependencies;
 editable installation uses the build requirements in `pyproject.toml`.
 
 한국어: 가상환경을 활성화하지 않아도 위 명령을 실행할 수 있습니다.
