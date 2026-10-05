@@ -7,6 +7,11 @@ contribute most after ingredients, packaging, and platform fees.
 It produces a readable Markdown table and a JSON report with decimal strings.
 Korean menu names and UTF-8 CSV exports with a BOM are supported.
 
+Add `--html` for an [offline contribution dashboard](docs/offline-dashboard.md)
+with Korean and English labels, summary cards, category comparison, searchable
+menu tables and printing. The single HTML file opens locally in a browser and
+uses the same calculation values as the JSON and Markdown reports.
+
 ## Install and run
 
 Python 3.10 or later is required.
@@ -135,22 +140,22 @@ On Linux, run as your host user so the reports keep your file ownership:
 
 ```sh
 mkdir -p report-container
-docker run --rm --platform linux/amd64 --network none --read-only --user "$(id -u):$(id -g)" --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.2.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
+docker run --rm --platform linux/amd64 --network none --read-only --user "$(id -u):$(id -g)" --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.3.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
 ```
 
 With Docker Desktop configured for Linux containers, PowerShell uses:
 
 ```powershell
 New-Item -ItemType Directory -Force report-container | Out-Null
-docker run --rm --platform linux/amd64 --network none --read-only --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.2.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
+docker run --rm --platform linux/amd64 --network none --read-only --mount "type=bind,source=${PWD},target=/work,readonly" --mount "type=bind,source=${PWD}/report-container,target=/output" ghcr.io/qorud02/fnb-margin-kit:0.3.0 /work/examples/store-versus-delivery.csv --output-dir /output --fixed-cost 300000
 ```
 
 The image defaults to UID 10001. Mounted inputs must be readable and the output directory writable by the user running the container. For this fixture, `report-container/report.json` contains contribution of 477,000 and contribution of 177,000 after the supplied fixed cost. Replace the CSV path and fixed cost with your own inputs for the same period and monetary unit.
 
-Download `fnb_margin_kit-0.2.0-py3-none-any.whl` and `SHA256SUMS` from the [release](https://github.com/qorud02/fnb-margin-kit/releases/tag/v0.2.0), then install the wheel offline:
+Download `fnb_margin_kit-0.3.0-py3-none-any.whl` and `SHA256SUMS` from the [release](https://github.com/qorud02/fnb-margin-kit/releases/tag/v0.3.0), then install the wheel offline:
 
 ```sh
-python -m pip install --no-index --no-deps ./fnb_margin_kit-0.2.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./fnb_margin_kit-0.3.0-py3-none-any.whl
 fnb-margin --help
 fnb-margin examples/store-versus-delivery.csv --output-dir report-wheel
 ```
