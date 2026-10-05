@@ -47,6 +47,11 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         'nonfinite-cost.csv':b'category,additional_variable_cost\nstore,NaN\n',
         'duplicate-cost.csv':b'category,additional_variable_cost\nstore,1\nstore,2\n',
         'html-names.csv':(header+'"</script><img src=x onerror=alert(1)>",store,5500,0.10,1200,100,0,1\n').encode(),
+        'cancellation.csv':(header
+            +'Positive,store,1e24,0,0,0,0,1e24\n'
+            +'Cent,store,0.01,0,0,0,0,1\n'
+            +'Negative,store,0,0,1e24,0,0,1e24\n').encode(),
+        'small-cost.csv':b'category,additional_variable_cost\nstore,0.02\n',
     }
     for name,data in payloads.items():
         (temp/name).write_bytes(data)
@@ -193,6 +198,17 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     assert (html_alias/'report.html').read_bytes()==payloads['source.csv']
     assert (html_linked/'report.html').read_bytes()==payloads['costs.csv']
     assert not (html_alias/'report.json').exists() and not (html_linked/'report.json').exists()
+
+    exact=report('exact-cancellation',[extra('cancellation.csv'),'--channel-costs',extra('small-cost.csv'),
+                 '--fixed-cost','0.03','--html'])
+    assert Decimal(exact['totals']['contribution'])==Decimal('0.01')
+    scenario=exact['channel_cost_scenario']
+    assert Decimal(scenario['categories'][0]['contribution_before_additional_cost'])==Decimal('0.01')
+    assert Decimal(scenario['contribution_after_additional_costs'])==Decimal('-0.01')
+    assert Decimal(exact['fixed_cost_scenario']['contribution_after_specified_fixed_cost'])==Decimal('-0.04')
+    exact_html=(output/'exact-cancellation'/'report.html').read_text(encoding='utf-8')
+    exact_payload=json.loads(re.search(r'<script id="report-data" type="application/json">(.*?)</script>',exact_html,re.S).group(1))
+    assert Decimal(exact_payload['categories'][0]['contribution_after_additional_cost'])==Decimal('-0.01')
 
     zero=report('zero-units-negative-margin',[extra('zero.csv')])
     assert zero['total_units']==0 and zero['menus'][0]['margin_flag']=='negative'

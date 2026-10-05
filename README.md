@@ -92,7 +92,10 @@ This is contribution analysis, not net profit. Labor, rent, other fixed costs,
 and income tax are excluded. `--fixed-cost` subtracts only the amount you supply;
 it does not turn the report into a full profit-and-loss statement.
 
-Calculation uses a 50-digit Decimal context. Markdown amounts round to two
+Per-menu calculations use a 50-digit Decimal context. Totals sum those computed
+amounts exactly, and channel/fixed-cost deductions preserve that precision.
+Reordering rows cannot erase a small residual between large opposing amounts.
+Markdown amounts round to two
 decimal places with half-up rounding; JSON amounts retain calculation precision
 as strings. Repeating divisions remain decimal approximations. The tool does
 not forecast demand or validate your ingredient cost records.
