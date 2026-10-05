@@ -24,3 +24,5 @@ jobs:
       - run: python -m pip install .
       - run: python -m unittest discover -s tests -v
       - run: fnb-margin examples/menu.csv --output-dir smoke-report --fixed-cost 300000
+      - run: fnb-margin examples/store-versus-delivery.csv --channel-costs examples/channel-costs.csv --fixed-cost 300000 --html --output-dir smoke-dashboard
+      - run: python -c "from pathlib import Path; from fnb_margin_kit.html_report import render_html; import json; p=Path('smoke-dashboard'); assert p.joinpath('report.html').read_text(encoding='utf-8') == render_html(json.loads(p.joinpath('report.json').read_text(encoding='utf-8')))"

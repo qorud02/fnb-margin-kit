@@ -10,6 +10,7 @@ from html import escape
 from pathlib import Path
 
 from .analysis import InputError, analyze, load_channel_costs, load_menu, number
+from .html_report import render_html
 
 
 def money(value: str) -> str:
@@ -109,6 +110,10 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="optional category-level variable-cost CSV for the same period and monetary unit",
     )
+    parser.add_argument(
+        "--html", action="store_true",
+        help="also write a self-contained offline report.html dashboard",
+    )
     args = parser.parse_args(argv)
     try:
         try:
@@ -117,7 +122,8 @@ def main(argv: list[str] | None = None) -> int:
                 inputs.append(args.channel_costs)
             for source in inputs:
                 input_path = source.resolve()
-                for name in ("report.json", "report.md"):
+                output_names = ("report.json", "report.md", "report.html") if args.html else ("report.json", "report.md")
+                for name in output_names:
                     output_path = args.output_dir / name
                     if output_path.resolve() == input_path or (
                         output_path.exists() and output_path.samefile(source)
@@ -134,15 +140,19 @@ def main(argv: list[str] | None = None) -> int:
         report = analyze(load_menu(args.csv), fixed_cost=fixed, channel_costs=channel_costs)
         json_text = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
         md_text = markdown(report)
+        html_text = render_html(report) if args.html else None
         args.output_dir.mkdir(parents=True, exist_ok=True)
         (args.output_dir / "report.json").write_text(json_text, encoding="utf-8")
         (args.output_dir / "report.md").write_text(md_text, encoding="utf-8")
+        if html_text is not None:
+            (args.output_dir / "report.html").write_text(html_text, encoding="utf-8")
     except (InputError, OSError, UnicodeError) as exc:
         print(f"fnb-margin: {exc}", file=sys.stderr)
         return 2
-    print(
-        f"Wrote {args.output_dir / 'report.md'} and {args.output_dir / 'report.json'}"
-    )
+    if args.html:
+        print(f"Wrote {args.output_dir / 'report.md'}, {args.output_dir / 'report.json'} and {args.output_dir / 'report.html'}")
+    else:
+        print(f"Wrote {args.output_dir / 'report.md'} and {args.output_dir / 'report.json'}")
     return 0
 
 

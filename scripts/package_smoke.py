@@ -4,6 +4,7 @@ from decimal import Decimal
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -45,6 +46,7 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         'unknown-cost.csv':b'category,additional_variable_cost\nunknown,60000\n',
         'nonfinite-cost.csv':b'category,additional_variable_cost\nstore,NaN\n',
         'duplicate-cost.csv':b'category,additional_variable_cost\nstore,1\nstore,2\n',
+        'html-names.csv':(header+'"</script><img src=x onerror=alert(1)>",store,5500,0.10,1200,100,0,1\n').encode(),
     }
     for name,data in payloads.items():
         (temp/name).write_bytes(data)
@@ -69,6 +71,15 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     cost_linked.mkdir()
     cost_linked.chmod(0o755)
     os.link(temp/'costs.csv',cost_linked/'report.json')
+    html_alias=temp/'html-alias'
+    html_alias.mkdir()
+    html_alias.chmod(0o755)
+    (html_alias/'report.html').write_bytes(payloads['source.csv'])
+    (html_alias/'report.html').chmod(0o644)
+    html_linked=temp/'html-cost-hardlink'
+    html_linked.mkdir()
+    html_linked.chmod(0o755)
+    os.link(temp/'costs.csv',html_linked/'report.html')
 
     if args.container:
         base=['docker','run','--rm','--platform','linux/amd64','--read-only','--network','none',
@@ -102,10 +113,11 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         return json.loads((destination/'report.json').read_text(encoding='utf-8'))
 
     help_text=run(['--help'],0,'console-help').stdout
-    assert '--fixed-cost' in help_text and '--output-dir' in help_text and '--channel-costs' in help_text
+    assert all(option in help_text for option in ('--fixed-cost','--output-dir','--channel-costs','--html'))
     original=report('original-menu',[fixture('menu.csv')])
     assert original['total_units']==190 and Decimal(original['totals']['net_sales'])==Decimal('770000')
     assert Decimal(original['totals']['contribution'])==Decimal('512000')
+    assert not (output/'original-menu'/'report.html').exists()
 
     comparison=report('store-versus-delivery',[fixture('store-versus-delivery.csv')])
     assert comparison['total_units']==140 and len(comparison['menus'])==2
@@ -157,6 +169,31 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     assert (cost_linked/'report.json').read_bytes()==payloads['costs.csv']
     assert not (cost_alias/'report.json').exists() and not (cost_linked/'report.md').exists()
 
+    dashboard=report('offline-dashboard',[fixture('store-versus-delivery.csv'),
+                     '--channel-costs',fixture('channel-costs.csv'),'--fixed-cost','300000','--html'])
+    assert dashboard==channel
+    for name in ('report.json','report.md'):
+        assert (output/'offline-dashboard'/name).read_bytes()==(output/'additional-channel-cost'/name).read_bytes()
+    html=(output/'offline-dashboard'/'report.html').read_text(encoding='utf-8')
+    payload=json.loads(re.search(r'<script id="report-data" type="application/json">(.*?)</script>',html,re.S).group(1))
+    assert Decimal(payload['summary']['fixed_cost_scenario']['contribution_after_specified_fixed_cost'])==Decimal('117000')
+    assert '117,000.00' in html and 'id="exact-values"' in html and '@media print' in html
+    assert 'parseFloat' not in html and 'Number(' not in html and 'fetch(' not in html
+    assert not re.search(r'<(?:script|link|img)\b[^>]*\b(?:src|href)\s*=',html,re.I)
+    secure=report('escaped-html-names',[extra('html-names.csv'),'--html'])
+    secure_html=(output/'escaped-html-names'/'report.html').read_text(encoding='utf-8')
+    assert '<img' not in secure_html and '\\u003c/script\\u003e' in secure_html
+    secure_payload=json.loads(re.search(r'<script id="report-data" type="application/json">(.*?)</script>',secure_html,re.S).group(1))
+    assert secure_payload['menus'][0]['menu']==secure['menus'][0]['menu']
+    guard=run([extra('html-alias/report.html'),'--html','--output-dir',extra('html-alias')],2,'html-input-alias-protection')
+    assert 'must not overwrite' in guard.stderr
+    cost_guard=run([extra('source.csv'),'--channel-costs',extra('costs.csv'),'--html',
+                   '--output-dir',extra('html-cost-hardlink')],2,'html-channel-cost-hardlink-protection')
+    assert 'must not overwrite' in cost_guard.stderr
+    assert (html_alias/'report.html').read_bytes()==payloads['source.csv']
+    assert (html_linked/'report.html').read_bytes()==payloads['costs.csv']
+    assert not (html_alias/'report.json').exists() and not (html_linked/'report.json').exists()
+
     zero=report('zero-units-negative-margin',[extra('zero.csv')])
     assert zero['total_units']==0 and zero['menus'][0]['margin_flag']=='negative'
     assert Decimal(zero['menus'][0]['contribution_per_unit'])==Decimal('-800')
@@ -197,7 +234,7 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         interpreter=sys.executable if args.source else str(Path(args.python).absolute())
         command=[interpreter]+([] if args.source else ['-I'])+['-m','fnb_margin_kit.cli','--help']
         result=subprocess.run(command,cwd=temp,env=clean_env,capture_output=True,text=True,encoding='utf-8',timeout=30)
-        assert result.returncode==0 and '--fixed-cost' in result.stdout and '--channel-costs' in result.stdout
+        assert result.returncode==0 and all(option in result.stdout for option in ('--fixed-cost','--channel-costs','--html'))
         checks.append('module-help')
 print(json.dumps({'mode':'container' if args.container else 'source' if args.source else 'wheel','version':version,
                   'version_check':'source pyproject only' if args.source else 'installed package metadata; CLI has no --version',
