@@ -77,6 +77,7 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
             +'Cent,store,0.01,0,0,0,0,1\n'
             +'Negative,store,0,0,1e24,0,0,1e24\n').encode(),
         'small-cost.csv':b'category,additional_variable_cost\nstore,0.02\n',
+        'mismatched-plan.csv':(header+row.replace('item,','other,')).encode(),
     }
     for name,data in payloads.items():
         (temp/name).write_bytes(data)
@@ -110,6 +111,14 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     html_linked.mkdir()
     html_linked.chmod(0o755)
     os.link(temp/'costs.csv',html_linked/'report.html')
+    plan_alias=temp/'plan-hardlink'
+    plan_alias.mkdir()
+    plan_alias.chmod(0o755)
+    os.link(temp/'source.csv',plan_alias/'comparison.json')
+    plan_cost_alias=temp/'plan-cost-hardlink'
+    plan_cost_alias.mkdir()
+    plan_cost_alias.chmod(0o755)
+    os.link(temp/'costs.csv',plan_cost_alias/'comparison.md')
 
     if args.container:
         base=['docker','run','--rm','--platform','linux/amd64','--read-only','--network','none',
@@ -143,7 +152,7 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         return json.loads((destination/'report.json').read_text(encoding='utf-8'))
 
     help_text=run(['--help'],0,'console-help').stdout
-    assert all(option in help_text for option in ('--fixed-cost','--output-dir','--channel-costs','--html'))
+    assert all(option in help_text for option in ('--fixed-cost','--output-dir','--channel-costs','--html','--compare-menu','--compare-channel-costs'))
     original=report('original-menu',[fixture('menu.csv')])
     assert original['total_units']==190 and Decimal(original['totals']['net_sales'])==Decimal('770000')
     assert Decimal(original['totals']['contribution'])==Decimal('512000')
@@ -232,6 +241,47 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     assert (html_linked/'report.html').read_bytes()==payloads['costs.csv']
     assert not (html_alias/'report.json').exists() and not (html_linked/'report.json').exists()
 
+    scenario_base=report('scenario-baseline',[fixture('price-cost-scenarios/baseline.csv'),
+                         '--channel-costs',fixture('price-cost-scenarios/baseline-channel-costs.csv'),
+                         '--fixed-cost','300000','--html'])
+    scenario_report=report('scenario-comparison',[fixture('price-cost-scenarios/baseline.csv'),
+                           '--compare-menu',fixture('price-cost-scenarios/proposed.csv'),
+                           '--channel-costs',fixture('price-cost-scenarios/baseline-channel-costs.csv'),
+                           '--compare-channel-costs',fixture('price-cost-scenarios/proposed-channel-costs.csv'),
+                           '--fixed-cost','300000','--html'])
+    assert scenario_report==scenario_base
+    for name in ('report.json','report.md','report.html'):
+        assert (output/'scenario-comparison'/name).read_bytes()==(output/'scenario-baseline'/name).read_bytes()
+    scenario=json.loads((output/'scenario-comparison'/'comparison.json').read_text(encoding='utf-8'))
+    assert scenario['baseline']==scenario_base and (output/'scenario-comparison'/'comparison.md').is_file()
+    summary=scenario['summary']
+    for side,menu_total,after_channel,after_fixed in [('baseline','450100','437100','137100'),
+                                                    ('proposed','458568','440568','140568')]:
+        assert Decimal(summary[side]['contribution'])==Decimal(menu_total)
+        assert Decimal(summary[side]['contribution_after_additional_costs'])==Decimal(after_channel)
+        assert Decimal(summary[side]['contribution_after_specified_fixed_cost'])==Decimal(after_fixed)
+    assert Decimal(summary['delta']['contribution_after_specified_fixed_cost'])==Decimal('3468')
+    scenario_rows={row['category']:row for row in scenario['menus']}
+    assert scenario_rows['매장']['retained_contribution_quantity']['min_units']==92
+    assert scenario_rows['배달']['retained_contribution_quantity']['min_units']==35
+    assert scenario_rows['배달']['retained_contribution_quantity']['current_units_meet_threshold']
+    assert Decimal(scenario_rows['배달']['proposed']['platform_fee_per_unit'])==Decimal('1089')
+    assert Decimal(scenario_rows['매장']['baseline']['net_sales'])==Decimal('500000')
+    assert Decimal(scenario_rows['매장']['proposed']['net_sales'])==Decimal('495000')
+    for label,arguments in [
+        ('comparison-cost-flag-requires-menu',[extra('source.csv'),'--compare-channel-costs',extra('costs.csv')]),
+        ('comparison-identity-mismatch',[extra('source.csv'),'--compare-menu',extra('mismatched-plan.csv')]),
+    ]:
+        run(arguments+['--output-dir',out(label)],2,label)
+        assert not (output/label).exists()
+    guard=run([extra('source.csv'),'--compare-menu',extra('source.csv'),
+               '--output-dir',extra('plan-hardlink')],2,'proposed-menu-comparison-output-hardlink-protection')
+    assert 'must not overwrite' in guard.stderr and (temp/'source.csv').read_bytes()==before_source
+    guard=run([extra('source.csv'),'--compare-menu',extra('source.csv'),'--compare-channel-costs',extra('costs.csv'),
+               '--output-dir',extra('plan-cost-hardlink')],2,'proposed-cost-comparison-output-hardlink-protection')
+    assert 'must not overwrite' in guard.stderr and (temp/'costs.csv').read_bytes()==payloads['costs.csv']
+    assert not (plan_alias/'report.json').exists() and not (plan_cost_alias/'report.json').exists()
+
     exact=report('exact-cancellation',[extra('cancellation.csv'),'--channel-costs',extra('small-cost.csv'),
                  '--fixed-cost','0.03','--html'])
     assert Decimal(exact['totals']['contribution'])==Decimal('0.01')
@@ -283,7 +333,7 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         interpreter=sys.executable if args.source else str(Path(args.python).absolute())
         command=[interpreter]+([] if args.source else ['-I'])+['-m','fnb_margin_kit.cli','--help']
         result=subprocess.run(command,cwd=temp,env=clean_env,capture_output=True,text=True,encoding='utf-8',timeout=30)
-        assert result.returncode==0 and all(option in result.stdout for option in ('--fixed-cost','--channel-costs','--html'))
+        assert result.returncode==0 and all(option in result.stdout for option in ('--fixed-cost','--channel-costs','--html','--compare-menu','--compare-channel-costs'))
         checks.append('module-help')
 print(json.dumps({'mode':'container' if args.container else 'source' if args.source else 'wheel','version':version,
                   'version_check':'source pyproject only' if args.source else 'installed package metadata; CLI has no --version',
