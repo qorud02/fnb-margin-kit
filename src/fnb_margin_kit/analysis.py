@@ -6,7 +6,7 @@ import csv
 from dataclasses import dataclass
 from decimal import Decimal, DecimalException, localcontext
 from pathlib import Path
-from typing import TextIO
+from typing import Iterable, TextIO
 
 FIELDS = (
     "menu",
@@ -186,6 +186,23 @@ def _decimal(value: Decimal) -> str:
     return format(value, "f")
 
 
+def _sum_exact(values: Iterable[Decimal]) -> Decimal:
+    """Sum finite computed amounts without rounding away cancellation residuals."""
+    values = list(values)
+    if not values:
+        return ZERO
+    with localcontext() as ctx:
+        # Align all coefficients, allowing carry digits for every summand.
+        # Per-menu divisions still use the documented 50-digit precision.
+        ctx.prec = max(
+            50,
+            max(value.adjusted() for value in values)
+            - min(value.as_tuple().exponent for value in values)
+            + len(str(len(values))) + 2,
+        )
+        return sum(values, ZERO)
+
+
 def analyze(
     items: list[MenuItem],
     fixed_cost: Decimal | None = None,
@@ -208,8 +225,8 @@ def analyze(
         rows = []
         seen = set()
         categories = {}
-        totals = {
-            key: ZERO
+        amounts_by_field = {
+            key: []
             for key in (
                 "gross_sales",
                 "net_sales",
@@ -253,12 +270,12 @@ def analyze(
                 "contribution": total_margin,
             }
             for key, value in amounts.items():
-                totals[key] += value
+                amounts_by_field[key].append(value)
             category_totals = categories.setdefault(
-                category, {"units": 0, "contribution": ZERO}
+                category, {"units": 0, "contributions": []}
             )
             category_totals["units"] += int(units)
-            category_totals["contribution"] += total_margin
+            category_totals["contributions"].append(total_margin)
             rows.append(
                 {
                     "menu": menu,
@@ -285,6 +302,9 @@ def analyze(
         )
         for rank, row in enumerate(rows, 1):
             row["rank"] = rank
+        totals = {key: _sum_exact(values) for key, values in amounts_by_field.items()}
+        for category_totals in categories.values():
+            category_totals["contribution"] = _sum_exact(category_totals["contributions"])
         report = {
             "schema_version": "1.0",
             "basis": {
@@ -293,7 +313,7 @@ def analyze(
                 "platform_fee": "price_gross * platform_fee_rate",
                 "contribution": "net sales minus ingredient, packaging, and platform fees",
                 "excluded": ["labor", "rent", "other fixed costs", "income tax"],
-                "rounding": "50-digit Decimal arithmetic; JSON amounts are decimal strings",
+                "rounding": "50-digit per-menu Decimal arithmetic with exact aggregation; JSON amounts are decimal strings",
             },
             "total_units": sum(row["units"] for row in rows),
             "totals": {key: _decimal(value) for key, value in totals.items()},
@@ -313,8 +333,10 @@ def analyze(
                 costs[category] = number(
                     str(cost.additional_variable_cost), "additional_variable_cost"
                 )
-            additional_total = sum(costs.values(), ZERO)
-            contribution_before_fixed_cost -= additional_total
+            additional_total = _sum_exact(costs.values())
+            contribution_before_fixed_cost = _sum_exact(
+                (contribution_before_fixed_cost, additional_total.copy_negate())
+            )
             report["channel_cost_scenario"] = {
                 "categories": [
                     {
@@ -325,8 +347,8 @@ def analyze(
                         ),
                         "additional_variable_cost": _decimal(costs.get(category, ZERO)),
                         "contribution_after_additional_cost": _decimal(
-                            categories[category]["contribution"]
-                            - costs.get(category, ZERO)
+                            _sum_exact((categories[category]["contribution"],
+                                        costs.get(category, ZERO).copy_negate()))
                         ),
                     }
                     for category in sorted(categories)
@@ -343,7 +365,7 @@ def analyze(
             report["fixed_cost_scenario"] = {
                 "specified_fixed_cost": _decimal(fixed_cost),
                 "contribution_after_specified_fixed_cost": _decimal(
-                    contribution_before_fixed_cost - fixed_cost
+                    _sum_exact((contribution_before_fixed_cost, fixed_cost.copy_negate()))
                 ),
                 "basis": "Only the supplied fixed cost is deducted; this is not a net-profit calculation.",
             }
