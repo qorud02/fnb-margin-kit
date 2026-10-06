@@ -11,7 +11,7 @@
       "other fixed costs",
       "income tax"
     ],
-    "rounding": "50-digit Decimal arithmetic; JSON amounts are decimal strings"
+    "rounding": "50-digit per-menu Decimal arithmetic with exact aggregation; JSON amounts are decimal strings"
   },
   "total_units": 190,
   "totals": {
