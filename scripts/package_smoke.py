@@ -1,6 +1,7 @@
 """Exercise file-based margin reports in a non-root image or isolated wheel."""
 import argparse
 from decimal import Decimal
+from html.parser import HTMLParser
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,26 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from markdown_it import MarkdownIt
+
+
+class TableCells(HTMLParser):
+    def __init__(self, rendered):
+        super().__init__(convert_charrefs=True)
+        self.cells, self.current, self.nested_tags = [], None, []
+        self.feed(rendered)
+    def handle_starttag(self, tag, attrs):
+        if self.current is not None:
+            self.nested_tags.append(tag)
+        if tag == 'td':
+            self.current = []
+    def handle_data(self, data):
+        if self.current is not None:
+            self.current.append(data)
+    def handle_endtag(self, tag):
+        if tag == 'td' and self.current is not None:
+            self.cells.append(''.join(self.current))
+            self.current = None
 
 parser=argparse.ArgumentParser()
 mode=parser.add_mutually_exclusive_group(required=True)
@@ -34,6 +55,8 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     output.chmod(0o777) # Disposable synthetic outputs, writable by image UID 10001.
     header='menu,category,price_gross,vat_rate,ingredient_cost,packaging_cost,platform_fee_rate,units\n'
     row='item,store,5500,0.10,1200,100,0,100\n'
+    literal_menu='![Latte](https://example.test/pixel.png) **bold** _em_ ~~old~~ `code` | \\'
+    literal_category='[Store](https://example.test)'
     payloads={
         'empty.csv':b'',
         'bad-header.csv':b'menu,price\nitem,1\n',
@@ -47,6 +70,8 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
         'nonfinite-cost.csv':b'category,additional_variable_cost\nstore,NaN\n',
         'duplicate-cost.csv':b'category,additional_variable_cost\nstore,1\nstore,2\n',
         'html-names.csv':(header+'"</script><img src=x onerror=alert(1)>",store,5500,0.10,1200,100,0,1\n').encode(),
+        'markdown-names.csv':(header+literal_menu+','+literal_category+',10,0,0,0,0,1\n').encode(),
+        'markdown-costs.csv':('category,additional_variable_cost\n'+literal_category+',2\n').encode(),
         'cancellation.csv':(header
             +'Positive,store,1e24,0,0,0,0,1e24\n'
             +'Cent,store,0.01,0,0,0,0,1\n'
@@ -123,6 +148,14 @@ with tempfile.TemporaryDirectory(prefix='fnb-package-smoke-') as directory:
     assert original['total_units']==190 and Decimal(original['totals']['net_sales'])==Decimal('770000')
     assert Decimal(original['totals']['contribution'])==Decimal('512000')
     assert not (output/'original-menu'/'report.html').exists()
+
+    literal=report('literal-markdown-names',[extra('markdown-names.csv'),'--channel-costs',extra('markdown-costs.csv')])
+    assert literal['menus'][0]['menu']==literal_menu and literal['menus'][0]['category']==literal_category
+    literal_text=(output/'literal-markdown-names'/'report.md').read_text(encoding='utf-8')
+    literal_html=MarkdownIt('commonmark').enable(['table','strikethrough']).render(literal_text)
+    cells=TableCells(literal_html)
+    assert not cells.nested_tags and len(cells.cells)==14, (cells.cells,cells.nested_tags)
+    assert [cells.cells[i] for i in (1,2,9)]==[literal_menu,literal_category,literal_category], cells.cells
 
     comparison=report('store-versus-delivery',[fixture('store-versus-delivery.csv')])
     assert comparison['total_units']==140 and len(comparison['menus'])==2

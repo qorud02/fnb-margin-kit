@@ -23,7 +23,10 @@ def money(value: str) -> str:
 
 def markdown(report: dict) -> str:
     def cell(value: str) -> str:
-        return escape(value).replace("\\", "\\\\").replace("|", "\\|")
+        text = escape(value).replace("\\", "\\\\")
+        for char in "`*_[]~":
+            text = text.replace(char, "\\" + char)
+        return text.replace("|", "\\|")
 
     totals = report["totals"]
     contribution_label = (

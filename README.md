@@ -103,11 +103,15 @@ not forecast demand or validate your ingredient cost records.
 ## Test
 
 ```console
+python -m pip install -r requirements-test.txt
 python -m unittest discover -s tests -v
 ```
 
 Run tests after installing the package, or set `PYTHONPATH=src` during local
-development. The suite covers decimal arithmetic, VAT and fee bases, invalid
+development. The pinned Markdown renderer is a test-only dependency; the CLI
+remains dependency-free. Menu and category names are escaped in Markdown tables
+so brackets, image/link syntax, stars and backticks remain part of the name.
+The suite covers decimal arithmetic, VAT and fee bases, invalid
 inputs, UTF-8 BOM, Korean names, rank ties, zero sales, negative margins,
 fixed-cost scenarios, period-level channel costs, protected input files, and CLI reports.
 
