@@ -1,0 +1,5 @@
+﻿menu,category,price_gross,vat_rate,ingredient_cost,packaging_cost,platform_fee_rate,units
+가상 라테,매장,5500,0.1,0,100,0.02,100
+가상 라테,배달,6000,0.1,0,650,0.18,30
+가상 바나나 음료,매장,6500,0.1,0,150,0.02,40
+가상 디저트,디저트,3300,0.1,0,200,0,25
