@@ -8,7 +8,7 @@ on:
       version:
         description: "Version matching pyproject.toml (without v)"
         required: true
-        default: "0.4.0"
+        default: "0.5.0"
         type: string
 
 permissions:
@@ -57,6 +57,11 @@ jobs:
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
           IMAGE_NAME: ${{ steps.version.outputs.image }}
         run: python scripts/package_smoke.py --container "$IMAGE_NAME:$PACKAGE_VERSION"
+      - name: Test recipe costing in the exact container
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          IMAGE_NAME: ${{ steps.version.outputs.image }}
+        run: python scripts/recipe_smoke.py --container "$IMAGE_NAME:$PACKAGE_VERSION"
       - name: Build Python wheel
         run: python -m pip wheel --no-deps --wheel-dir dist .
       - name: Verify wheel contents against release source
@@ -66,6 +71,7 @@ jobs:
           python -m venv "$RUNNER_TEMP/wheel-venv"
           "$RUNNER_TEMP/wheel-venv/bin/python" -m pip install --no-index --no-deps dist/*.whl
           python scripts/package_smoke.py --python "$RUNNER_TEMP/wheel-venv/bin/python" --console "$RUNNER_TEMP/wheel-venv/bin/fnb-margin"
+          python scripts/recipe_smoke.py --python "$RUNNER_TEMP/wheel-venv/bin/python" --console "$RUNNER_TEMP/wheel-venv/bin/fnb-recipe"
       - name: Save wheel and checksums
         uses: actions/upload-artifact@v4
         with:
