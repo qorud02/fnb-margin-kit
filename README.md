@@ -106,6 +106,8 @@ it does not turn the report into a full profit-and-loss statement.
 
 Per-menu calculations use a 50-digit Decimal context. Totals sum those computed
 amounts exactly, and channel/fixed-cost deductions preserve that precision.
+Calculations and report rendering use separate Decimal contexts, so caller
+rounding settings, exponent limits and inexact-value traps do not change results.
 Reordering rows cannot erase a small residual between large opposing amounts.
 Markdown amounts round to two
 decimal places with half-up rounding; JSON amounts retain calculation precision

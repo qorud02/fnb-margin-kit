@@ -11,6 +11,7 @@ from html import escape
 from pathlib import Path
 from typing import TextIO
 
+from ._decimal import decimal_context
 from .analysis import FIELDS, InputError, MenuItem, _text, analyze, number
 
 INGREDIENT_FIELDS = (
@@ -126,9 +127,7 @@ def _decimal(value: Decimal) -> str:
 
 def exact_value(value: Fraction) -> dict[str, str]:
     """Keep the exact rational beside a context-independent 50-digit display."""
-    with localcontext() as ctx:
-        ctx.prec = 50
-        ctx.rounding = ROUND_HALF_UP
+    with localcontext(decimal_context(50, ROUND_HALF_UP)):
         display = format(Decimal(value.numerator) / Decimal(value.denominator), "f")
     return {"numerator": str(value.numerator), "denominator": str(value.denominator),
             "decimal": display}
