@@ -32,3 +32,4 @@ jobs:
       - run: fnb-recipe examples/recipe-costing/ingredients.csv examples/recipe-costing/recipes.csv --menu examples/recipe-costing/menu.csv --output-dir smoke-recipes
       - run: python -c "from pathlib import Path; import json; p=Path('smoke-recipes'); c=json.loads(p.joinpath('recipe-costs.json').read_text(encoding='utf-8')); assert len(c['recipe_lines'])==9 and len(c['menus'])==4; r=c['menus'][0]; assert r['ingredient_cost']['numerator']=='19008' and r['ingredient_cost']['denominator']=='19' and r['export_ingredient_cost']=='1000.421052631579'; assert p.joinpath('menu-ingredient-costs.csv').is_file()"
       - run: fnb-margin smoke-recipes/costed-menu.csv --html --output-dir smoke-recipe-margins
+      - run: python scripts/procurement_smoke.py --python "$(command -v python)" --console "$(command -v fnb-procure)"
