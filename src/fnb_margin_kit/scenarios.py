@@ -6,6 +6,7 @@ from decimal import ROUND_HALF_UP, Decimal, localcontext
 from fractions import Fraction
 from html import escape
 
+from ._decimal import decimal_context
 from .analysis import FIELDS, ChannelCost, InputError, MenuItem, _sum_exact, analyze
 
 UNIT_LIMIT = 10**25 - 1
@@ -59,8 +60,7 @@ def retained_quantity(baseline_inputs: dict, proposed_inputs: dict) -> dict:
 
 def _sales(inputs: dict, row: dict) -> dict:
     # Match the existing per-menu computation; aggregate only the recorded amounts.
-    with localcontext() as ctx:
-        ctx.prec = 50
+    with localcontext(decimal_context(50)):
         return {
             "gross_sales": format(Decimal(inputs["price_gross"]) * inputs["units"], "f"),
             "net_sales": format(Decimal(row["net_price_per_unit"]) * inputs["units"], "f"),
@@ -203,7 +203,7 @@ def comparison_markdown(comparison: dict) -> str:
         return text.replace("|", "\\|")
 
     def money(value: str) -> str:
-        with localcontext() as ctx:
+        with localcontext(decimal_context(80)) as ctx:
             ctx.prec = max(80, Decimal(value).adjusted() + 4)
             return f"{Decimal(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
 

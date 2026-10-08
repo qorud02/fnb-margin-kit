@@ -7,6 +7,8 @@ import re
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 from html import escape
 
+from ._decimal import decimal_context
+
 NUMERIC_FIELDS = (
     "units", "net_price_per_unit", "platform_fee_per_unit",
     "variable_cost_per_unit", "contribution_per_unit", "total_contribution",
@@ -15,8 +17,7 @@ MARGINS = {"positive": "양수 / Positive", "zero": "0 / Zero", "negative": "음
 
 
 def amount(value: str) -> str:
-    with localcontext() as ctx:
-        ctx.prec = 80
+    with localcontext(decimal_context(80)):
         return f"{Decimal(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
 
 
@@ -33,7 +34,7 @@ def sum_reported_values(values: list[str]) -> Decimal:
     decimals = [Decimal(value) for value in values]
     if not decimals:
         return Decimal(0)
-    with localcontext() as ctx:
+    with localcontext(decimal_context(80)) as ctx:
         ctx.prec = max(
             80,
             max(value.adjusted() for value in decimals)
@@ -122,11 +123,10 @@ def render_html(report: dict) -> str:
         cost_details.append("지정 고정비 / Specified fixed cost: "
                             + value_html(report["fixed_cost_scenario"]["specified_fixed_cost"]))
     channels = []
-    maximum = max((abs(Decimal(row["contribution_after_additional_cost"])) for row in data["categories"]), default=Decimal(0))
+    maximum = max((Decimal(row["contribution_after_additional_cost"]).copy_abs() for row in data["categories"]), default=Decimal(0))
     for row in data["categories"]:
         value = Decimal(row["contribution_after_additional_cost"])
-        with localcontext() as ctx:
-            ctx.prec = 80
+        with localcontext(decimal_context(80)):
             width = format(abs(value) / maximum * 100, ".2f") if maximum else "0.00"
         side = "negative" if value < 0 else "positive"
         channels.append(

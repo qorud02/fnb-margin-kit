@@ -9,8 +9,12 @@ from pathlib import Path
 
 from .analysis import InputError, load_menu
 from .recipes import (
-    cost_recipes, costed_menu_csv, ingredient_costs_csv, load_ingredients,
-    load_recipes, recipe_markdown,
+    cost_recipes,
+    costed_menu_csv,
+    ingredient_costs_csv,
+    load_ingredients,
+    load_recipes,
+    recipe_markdown,
 )
 
 
