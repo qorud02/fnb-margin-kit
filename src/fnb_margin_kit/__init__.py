@@ -3,4 +3,4 @@
 from .analysis import InputError, MenuItem, analyze, load_menu
 
 __all__ = ["InputError", "MenuItem", "analyze", "load_menu"]
-__version__ = "0.5.0"
+__version__ = "0.6.0"

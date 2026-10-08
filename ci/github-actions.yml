@@ -21,10 +21,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install .
+      - run: python -m pip install . -r requirements-test.txt
       - run: python -m unittest discover -s tests -v
       - run: fnb-margin examples/menu.csv --output-dir smoke-report --fixed-cost 300000
       - run: fnb-margin examples/store-versus-delivery.csv --channel-costs examples/channel-costs.csv --fixed-cost 300000 --html --output-dir smoke-dashboard
       - run: python -c "from pathlib import Path; from fnb_margin_kit.html_report import render_html; import json; p=Path('smoke-dashboard'); assert p.joinpath('report.html').read_text(encoding='utf-8') == render_html(json.loads(p.joinpath('report.json').read_text(encoding='utf-8')))"
       - run: fnb-margin examples/price-cost-scenarios/baseline.csv --compare-menu examples/price-cost-scenarios/proposed.csv --channel-costs examples/price-cost-scenarios/baseline-channel-costs.csv --compare-channel-costs examples/price-cost-scenarios/proposed-channel-costs.csv --fixed-cost 300000 --html --output-dir smoke-comparison
       - run: python -c "from pathlib import Path; import json; from decimal import Decimal; p=Path('smoke-comparison'); c=json.loads(p.joinpath('comparison.json').read_text(encoding='utf-8')); assert Decimal(c['summary']['delta']['contribution_after_specified_fixed_cost'])==Decimal('3468'); assert c['baseline']==json.loads(p.joinpath('report.json').read_text(encoding='utf-8')); assert p.joinpath('comparison.md').is_file()"
+      - run: python scripts/procurement_smoke.py --python "$(command -v python)" --console "$(command -v fnb-procure)"

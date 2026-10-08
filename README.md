@@ -22,6 +22,13 @@ with `fnb-recipe`. It converts compatible recipe units, keeps exact cost fractio
 and exports a menu CSV for `fnb-margin`. See [recipe costing](docs/recipe-costing.md)
 for the two input tables and a worked example.
 
+Use `fnb-procure` to turn planned menu quantities into an ingredient purchase
+list. It combines shared ingredients across menu categories, applies preparation
+yields, subtracts raw stock once, and rounds shortages up to complete purchase
+packs. The report includes purchase spend and remaining raw stock. See
+[stock-aware ingredient purchasing](docs/procurement.md) for inputs and an exact
+worked example.
+
 ## Install and run
 
 Python 3.10 or later is required.

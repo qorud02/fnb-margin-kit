@@ -1,0 +1,7 @@
+ingredient,purchase_quantity,purchase_unit,purchase_price,yield_rate
+가상 원두,1,kg,24000,1
+가상 우유,1,l,3000,0.95
+가상 바나나,1,kg,5000,0.8
+가상 시럽,750,ml,6000,1
+가상 디저트 반제품,12,each,18000,1
+가상 생강,500,g,2000,0.9
