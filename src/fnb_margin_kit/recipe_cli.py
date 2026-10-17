@@ -26,14 +26,25 @@ def main(argv: list[str] | None = None) -> int:
         output_names.append("costed-menu.csv")
     try:
         try:
+            outputs = [args.output_dir / name for name in output_names]
+            if args.output_dir.exists() and not args.output_dir.is_dir():
+                raise InputError("Recipe output directory must be a directory")
+            for output in outputs:
+                if output.exists() and not output.is_file():
+                    raise InputError(f"Recipe output must be a file: {output}")
             for source in (args.ingredients, args.recipes, args.menu):
                 if source is None:
                     continue
                 resolved = source.resolve()
-                for name in output_names:
-                    output = args.output_dir / name
+                for output in outputs:
                     if output.resolve() == resolved or (output.exists() and output.samefile(source)):
                         raise InputError("Recipe output must not overwrite an input CSV")
+            for index, output in enumerate(outputs):
+                for other in outputs[:index]:
+                    if output.resolve() == other.resolve() or (
+                        output.exists() and other.exists() and output.samefile(other)
+                    ):
+                        raise InputError("Recipe output files must not alias each other")
         except RuntimeError as exc:
             raise InputError(f"Unable to resolve input or recipe-output path: {exc}") from exc
         report = cost_recipes(
