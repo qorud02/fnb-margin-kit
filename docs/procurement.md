@@ -22,6 +22,13 @@ The command writes three files:
 - `ingredient-procurement.csv`: one row per catalog ingredient, with decimal
   quantities and exact numerator/denominator audit columns.
 
+In version 0.7.0, add `--html` to also write `procurement.html`, a self-contained
+Korean purchase-plan report. It separates purchase packs/spend/remaining stock,
+raw demand/shortages and the underlying sales plan. It works offline with no
+external resources and includes a landscape print stylesheet. Display rounding
+does not change the exact purchasing calculation or the three existing files.
+See the [Korean report guide](procurement-plan.md) for precision and sharing notes.
+
 Omit `--stock` to plan from zero opening stock. A missing ingredient in the
 stock table also means zero opening stock. Catalog ingredients unused by the
 plan remain in the report with zero demand and their supplied stock.

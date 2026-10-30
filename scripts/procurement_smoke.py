@@ -106,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix="fnb-procurement-smoke-") as directory:
         return Fraction(int(value["numerator"]), int(value["denominator"]))
 
     help_text = run(["--help"], 0, "procurement-console-help").stdout
-    assert all(value in help_text for value in ("ingredients", "recipes", "plan", "--stock", "--output-dir"))
+    assert all(value in help_text for value in ("ingredients", "recipes", "plan", "--stock", "--output-dir", "--html"))
     dest = destination("example")
     run([fixture("ingredients.csv"), fixture("recipes.csv"), fixture("plan.csv"),
          "--stock", fixture("stock.csv"), "--output-dir", out("example")],
@@ -135,6 +135,17 @@ with tempfile.TemporaryDirectory(prefix="fnb-procurement-smoke-") as directory:
     assert exported["가상 우유"]["purchase_packs"] == "12"
     assert len(exported) == 6
     checks.append("csv-exact-fraction-audit-columns")
+    html_dest = destination("html-example")
+    run([fixture("ingredients.csv"), fixture("recipes.csv"), fixture("plan.csv"),
+         "--stock", fixture("stock.csv"), "--html", "--output-dir", out("html-example")],
+        0, "offline-korean-purchase-plan-html")
+    for name in ("procurement.json", "procurement.md", "ingredient-procurement.csv"):
+        assert (html_dest / name).read_bytes() == (dest / name).read_bytes()
+    page = (html_dest / "procurement.html").read_text(encoding="utf-8")
+    assert all(text in page for text in ("재료 구매계획", "94,000", "가상 우유", "≈12,947.3684 ml",
+                                        "246000/19", "@media print", "default-src 'none'"))
+    assert "<script" not in page and "<link" not in page and "<iframe" not in page
+    checks.append("html-legacy-reports-byte-identical-exact-fraction-visible")
     no_stock = destination("without-stock")
     run([fixture("ingredients.csv"), fixture("recipes.csv"), fixture("plan.csv"), "--output-dir", out("without-stock")],
         0, "optional-stock-means-zero-opening-stock")

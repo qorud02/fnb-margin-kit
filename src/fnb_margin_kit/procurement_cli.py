@@ -9,8 +9,13 @@ from pathlib import Path
 
 from .analysis import InputError
 from .procurement import (
-    load_plan, load_stock, plan_procurement, procurement_csv, procurement_markdown,
+    load_plan,
+    load_stock,
+    plan_procurement,
+    procurement_csv,
+    procurement_markdown,
 )
+from .procurement_html import render_procurement_html
 from .recipes import load_ingredients, load_recipes
 
 OUTPUT_NAMES = ("procurement.json", "procurement.md", "ingredient-procurement.csv")
@@ -23,11 +28,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("plan", type=Path, help="planned menu,category,units CSV")
     parser.add_argument("--stock", type=Path, help="optional raw ingredient,quantity,unit CSV")
     parser.add_argument("--output-dir", type=Path, default=Path("procurement-report"))
+    parser.add_argument("--html", action="store_true", help="also write a self-contained Korean purchase-plan HTML report")
     args = parser.parse_args(argv)
     try:
         sources = [path for path in (args.ingredients, args.recipes, args.plan, args.stock)
                    if path is not None]
         outputs = [args.output_dir / name for name in OUTPUT_NAMES]
+        if args.html:
+            outputs.append(args.output_dir / "procurement.html")
         try:
             if args.output_dir.exists() and not args.output_dir.is_dir():
                 raise InputError("Procurement output directory must be a directory")
@@ -49,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         texts = (json.dumps(report, ensure_ascii=False, indent=2) + "\n",
                  procurement_markdown(report), procurement_csv(report))
+        if args.html:
+            texts += (render_procurement_html(report),)
         args.output_dir.mkdir(parents=True, exist_ok=True)
         for output, text in zip(outputs, texts):
             output.write_text(text, encoding="utf-8", newline="\n")

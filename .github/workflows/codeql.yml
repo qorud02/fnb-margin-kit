@@ -1,0 +1,162 @@
+name: CodeQL security analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out analyzed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          languages: python
+          build-mode: none
+          queries: security-extended
+      - name: Analyze and upload to code scanning
+        id: analyze
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          category: /language:python
+          output: codeql-results
+          wait-for-processing: true
+      - name: Summarize actual SARIF results
+        if: ${{ !cancelled() && steps.analyze.outcome != 'skipped' }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import collections
+          import json
+          import os
+          from pathlib import Path
+
+          directory = Path("codeql-results")
+          files = sorted(directory.glob("*.sarif"))
+          if not files:
+              raise SystemExit("No SARIF files were produced; no finding count is available.")
+
+          def severity_bucket(value):
+              try:
+                  score = float(value)
+              except (TypeError, ValueError):
+                  return "not-rated"
+              if score >= 9:
+                  return "critical"
+              if score >= 7:
+                  return "high"
+              if score >= 4:
+                  return "medium"
+              if score > 0:
+                  return "low"
+              return "not-rated"
+
+          totals = collections.Counter()
+          levels = collections.Counter()
+          severities = collections.Counter()
+          reports = []
+          failed_invocations = []
+          for path in files:
+              document = json.loads(path.read_text(encoding="utf-8"))
+              if document.get("version") != "2.1.0" or not document.get("runs"):
+                  raise SystemExit(f"Unexpected or empty SARIF document: {path.name}")
+              for run_index, run in enumerate(document["runs"]):
+                  driver = run.get("tool", {}).get("driver", {})
+                  rules = driver.get("rules", [])
+                  by_id = {rule.get("id"): rule for rule in rules}
+                  for extension in run.get("tool", {}).get("extensions", []):
+                      for rule in extension.get("rules", []):
+                          by_id.setdefault(rule.get("id"), rule)
+                  findings = []
+                  for result in run.get("results", []):
+                      rule_id = result.get("ruleId")
+                      rule = by_id.get(rule_id, {})
+                      index = result.get("ruleIndex")
+                      if not rule and isinstance(index, int) and 0 <= index < len(rules):
+                          rule = rules[index]
+                      level = result.get("level", rule.get("defaultConfiguration", {}).get("level", "warning"))
+                      security_severity = rule.get("properties", {}).get("security-severity")
+                      bucket = severity_bucket(security_severity)
+                      accepted_suppression = any(
+                          item.get("status") == "accepted" for item in result.get("suppressions", [])
+                      )
+                      totals["results"] += 1
+                      totals["accepted_suppressions"] += int(accepted_suppression)
+                      levels[level] += 1
+                      severities[bucket] += 1
+                      findings.append({
+                          "rule_id": rule_id or rule.get("id"),
+                          "level": level,
+                          "security_severity": security_severity,
+                          "security_severity_bucket": bucket,
+                          "accepted_suppression": accepted_suppression,
+                      })
+                  invocations = run.get("invocations", [])
+                  failed_invocations.extend(
+                      f"{path.name}:run-{run_index}:invocation-{index}"
+                      for index, invocation in enumerate(invocations)
+                      if invocation.get("executionSuccessful") is False
+                  )
+                  reports.append({
+                      "file": path.name,
+                      "run_index": run_index,
+                      "tool": driver.get("name"),
+                      "tool_version": driver.get("semanticVersion", driver.get("version")),
+                      "rule_count": len(by_id),
+                      "result_count": len(findings),
+                      "invocation_execution_successful": [item.get("executionSuccessful") for item in invocations],
+                      "findings": findings,
+                  })
+
+          summary = {
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "source_commit": os.environ.get("GITHUB_SHA"),
+              "source_ref": os.environ.get("GITHUB_REF"),
+              "workflow_run_url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              "query_suite": "security-extended",
+              "sarif_files": len(files),
+              "total_results": totals["results"],
+              "accepted_suppressions": totals["accepted_suppressions"],
+              "levels": dict(sorted(levels.items())),
+              "security_severity_buckets": dict(sorted(severities.items())),
+              "failed_invocations": failed_invocations,
+              "reports": reports,
+              "scope_note": "Counts describe this SARIF analysis, not a security certification or proof that all vulnerabilities are absent.",
+          }
+          rendered = json.dumps(summary, ensure_ascii=False, indent=2)
+          directory.joinpath("sarif-summary.json").write_text(rendered + "\n", encoding="utf-8")
+          print(rendered)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+              stream.write("## Actual CodeQL SARIF results\n\n")
+              stream.write(f"Source commit: `{summary['source_commit']}`\n\n")
+              stream.write(f"SARIF files: {len(files)}; reported results: **{totals['results']}**; accepted suppressions: {totals['accepted_suppressions']}.\n\n")
+              stream.write(f"Levels: `{json.dumps(summary['levels'], sort_keys=True)}`\n\n")
+              stream.write(f"Security severity: `{json.dumps(summary['security_severity_buckets'], sort_keys=True)}`\n\n")
+              stream.write("A successful workflow does not imply zero findings. See the archived SARIF and JSON summary for this exact analysis. This is not a security certification.\n")
+          if failed_invocations:
+              raise SystemExit("SARIF includes failed analysis invocations; review the archived evidence.")
+          PY
+      - name: Archive analysis and finding counts
+        if: ${{ !cancelled() && steps.analyze.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-python-${{ github.sha }}
+          path: codeql-results/
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 30
