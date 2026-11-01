@@ -8,6 +8,8 @@ from decimal import Decimal, DecimalException, localcontext
 from pathlib import Path
 from typing import Iterable, TextIO
 
+from ._decimal import decimal_context
+
 FIELDS = (
     "menu",
     "category",
@@ -191,7 +193,7 @@ def _sum_exact(values: Iterable[Decimal]) -> Decimal:
     values = list(values)
     if not values:
         return ZERO
-    with localcontext() as ctx:
+    with localcontext(decimal_context(50)) as ctx:
         # Align all coefficients, allowing carry digits for every summand.
         # Per-menu divisions still use the documented 50-digit precision.
         ctx.prec = max(
@@ -220,8 +222,7 @@ def analyze(
         raise InputError("At least one menu item is required")
     if fixed_cost is not None:
         fixed_cost = number(str(fixed_cost), "fixed_cost")
-    with localcontext() as ctx:
-        ctx.prec = 50
+    with localcontext(decimal_context(50)):
         rows = []
         seen = set()
         categories = {}

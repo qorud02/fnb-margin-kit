@@ -9,14 +9,14 @@ from decimal import ROUND_HALF_UP, Decimal, localcontext
 from html import escape
 from pathlib import Path
 
+from ._decimal import decimal_context
 from .analysis import InputError, analyze, load_channel_costs, load_menu, number
 from .html_report import render_html
 from .scenarios import analyze_comparison, comparison_markdown
 
 
 def money(value: str) -> str:
-    with localcontext() as ctx:
-        ctx.prec = 80
+    with localcontext(decimal_context(80)):
         return (
             f"{Decimal(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
         )
