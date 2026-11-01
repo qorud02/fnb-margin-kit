@@ -139,14 +139,25 @@ def main(argv: list[str] | None = None) -> int:
                 output_names.append("report.html")
             if args.compare_menu is not None:
                 output_names += ["comparison.json", "comparison.md"]
+            outputs = [args.output_dir / name for name in output_names]
+            if args.output_dir.exists() and not args.output_dir.is_dir():
+                raise InputError("Report output directory must be a directory")
+            for output_path in outputs:
+                if output_path.exists() and not output_path.is_file():
+                    raise InputError(f"Report output must be a file: {output_path}")
             for source in inputs:
                 input_path = source.resolve()
-                for name in output_names:
-                    output_path = args.output_dir / name
+                for output_path in outputs:
                     if output_path.resolve() == input_path or (
                         output_path.exists() and output_path.samefile(source)
                     ):
                         raise InputError("Report output must not overwrite the input CSV")
+            for index, output_path in enumerate(outputs):
+                for other in outputs[:index]:
+                    if output_path.resolve() == other.resolve() or (
+                        output_path.exists() and other.exists() and output_path.samefile(other)
+                    ):
+                        raise InputError("Report output files must not alias each other")
         except RuntimeError as exc:
             raise InputError(f"Unable to resolve input or report path: {exc}") from exc
         fixed = (
